@@ -46,3 +46,49 @@ exports.deleteTags = functions.database.ref('/tags/{uid}/{tagId}')
       });
       }
     });
+
+    exports.incrementNoteCount = functions.database.ref('/pastes/{uid}/{pasteId}').onCreate(
+      event => {
+          var uid = event.params.uid;
+          var ref = admin.database().ref('totals').child(uid).child("totalCount");
+          ref.transaction(function(totalCount){
+            return (totalCount||0) + 1;
+          });
+      });
+    exports.decrementNoteAndArchiveCount = functions.database.ref('/pastes/{uid}/{pasteId}').onDelete(
+      event => {
+        //a note was deleted, won't happen with user interaction
+          var uid = event.params.uid;
+          var ref = admin.database().ref('totals').child(uid).child("totalCount");
+          ref.transaction(function(totalCount){
+            return (totalCount||0) - 1;
+          });
+          //check if the note was archived and decrement total archived count
+          console.log(event.data.previous.val());
+          if(event.data.previous.val().archived){
+            var ref = admin.database().ref('totals').child(event.params.uid).child("totalArchivedCount");
+            ref.transaction(function(totalArchivedCount){
+              return totalArchivedCount-1;
+            });
+          }
+      });
+
+    exports.countArchivedNotes = functions.database.ref('pastes/{uid}/{pasteId}/archived').onUpdate(
+      event => {
+        //paste was archived
+        var ref = admin.database().ref('totals').child(event.params.uid).child("totalArchivedCount");
+        if(event.data.current.val()){
+          ref.transaction(function(totalArchivedCount){
+            return (totalArchivedCount||0) + 1;
+          });
+        }
+        //paste was unarchived
+        else{
+         ref.transaction(function(totalArchivedCount){
+            return totalArchivedCount - 1;
+          }); 
+        }
+        console.log(event.data.current.val());
+
+      }
+      );
